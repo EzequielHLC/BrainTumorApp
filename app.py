@@ -123,7 +123,7 @@ def superponer_heatmap(original_img_array, heatmap, alpha=0.4):
 # Título de la aplicación
 st.title("🧠 Clasificador de Tumores Cerebrales por MRI")
 st.write("""Sube una imagen de Resonancia Magnética (MRI) cerebral y 
-el modelo predirá si se trata de un glioma, meningioma, 
+el modelo hará una predicción de si se trata de un glioma, meningioma, 
 un tumor pituitario, o si no hay tumor.
 """)
 

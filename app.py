@@ -4,6 +4,8 @@ from tensorflow.keras.models import load_model, Model
 from PIL import Image
 import numpy as np
 import cv2
+import os
+import time
 
 # --- Configuración de la página ---
 
@@ -60,6 +62,98 @@ def preprocesar_imagen(image, target_size=(224, 224)):
     # 3. El array original (para mostrar)
 
     return img_array_normalized, img_array_expanded, np.array(img.resize(target_size))
+
+
+def analizar_imagen(image, caption_text=None):
+    """
+    Realiza preprocesado, predicción y genera Grad-CAM para una imagen PIL.
+    """
+    if caption_text:
+        st.image(image, caption=caption_text, use_container_width=True)
+    else:
+        st.image(image, caption='Imagen seleccionada.', use_container_width=True)
+
+    # Barra de progreso: creamos un único placeholder y lo actualizamos
+    progress_ph = st.empty()
+    update_progress(progress_ph, 1)
+
+    processed_img_norm, processed_img_expanded, original_img_array = preprocesar_imagen(image)
+    update_progress(progress_ph, 2)
+
+    with st.spinner('Clasificando...'):
+        predictions = modelo.predict(processed_img_expanded)
+    update_progress(progress_ph, 3)
+
+    class_names = ['Glioma', 'Meningioma', 'Sin Tumor', 'Tumor Pituitario']
+
+    score_index = np.argmax(predictions)
+    predicted_class = class_names[score_index]
+    confidence = predictions[0][score_index] * 100
+
+    st.success(f"**Predicción:** {predicted_class}")
+    st.info(f"**Confianza:** {confidence:.2f}%")
+
+    st.write("---")
+    st.subheader("Explicabilidad del Modelo (Grad-CAM)")
+    st.write("El mapa de calor resalta las áreas que el modelo consideró más importantes para su predicción.")
+
+    with st.spinner('Generando mapa de calor...'):
+        heatmap = generar_grad_cam(grad_model, processed_img_expanded, score_index)
+        superimposed_image = superponer_heatmap(original_img_array, heatmap)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(original_img_array, caption='Imagen Original (Procesada)', use_container_width=True)
+        with col2:
+            st.image(superimposed_image, caption='Imagen con Grad-CAM', use_container_width=True)
+
+    st.write("Probabilidades detalladas:")
+    all_scores = {class_names[i]: predictions[0][i] * 100 for i in range(len(class_names))}
+    st.dataframe(all_scores, use_container_width=True)
+
+    # Marcar resultado final (y mantener una sola aparición de la barra)
+    update_progress(progress_ph, 4)
+
+
+def update_progress(placeholder, current_step: int):
+    """
+    Actualiza (en un único placeholder) la barra de progreso estética.
+    """
+    steps = ['Preprocesado', 'Predicción', 'Grad-CAM', 'Resultado']
+    total = len(steps)
+    if total <= 1:
+        percent = 100
+    else:
+        percent = int(((current_step - 1) / (total - 1)) * 100)
+
+    html = f"""
+    <style>
+    .prog-container {{background:#f0f2f6;border-radius:12px;padding:10px;margin-bottom:14px;}}
+    .prog-bar-outer {{background:#e6e9ee;border-radius:10px;padding:4px;}}
+    .prog-bar-inner {{width:{percent}%;height:16px;background:linear-gradient(90deg,#4facfe,#00f2fe);border-radius:8px;transition:width:600ms ease;}}
+    .step-labels {{display:flex;justify-content:space-between;margin-top:8px;font-size:13px;color:#333;font-weight:600;}}
+    .step {{flex:1;text-align:center}}
+    .dot {{display:inline-block;width:14px;height:14px;border-radius:50%;background:#ddd;margin-bottom:6px}}
+    .dot.completed {{background:#4caf50}}
+    .dot.active {{background:linear-gradient(90deg,#4facfe,#00f2fe);box-shadow:0 2px 6px rgba(0,0,0,0.12)}}
+    </style>
+    <div class="prog-container">
+      <div class="prog-bar-outer"><div class="prog-bar-inner"></div></div>
+      <div class="step-labels">
+    """
+
+    for i, label in enumerate(steps, start=1):
+        cls = ''
+        if i < current_step:
+            cls = 'completed'
+        elif i == current_step:
+            cls = 'active'
+        html += f"<div class='step'><div class='dot {cls}'></div><div>{label}</div></div>"
+
+    html += "</div></div>"
+    placeholder.markdown(html, unsafe_allow_html=True)
+    # Pequeña pausa para que la animación sea visible
+    time.sleep(0.5)
 
 def generar_grad_cam(grad_model, img_array_expanded, class_index):
     """
@@ -138,54 +232,36 @@ uploaded_file = st.file_uploader(
     type=["jpg", "jpeg", "png"]
 )
 
-# Paso 3: Lógica de predicción
-if uploaded_file is not None:
-    # Mostrar la imagen subida por el usuario
-    image = Image.open(uploaded_file)
-    st.image(image, caption='Imagen subida.', use_container_width=True)
+# Opción: usar imágenes de prueba desde la carpeta `test_img`
+use_test_images = st.checkbox('Usar imágenes desde el directorio de Imágenes de Prueba')
 
-    # Preprocesar la imagen
-    processed_img_norm, processed_img_expanded, original_img_array = preprocesar_imagen(image)
-
-    # Realizar la predicción
-    st.write("Realizando la predicción...")
-    with st.spinner('Clasificando...'):
-        predictions = modelo.predict(processed_img_expanded)
-    
-    # Obtener el resultado
-    class_names = ['Glioma', 'Meningioma', 'Sin Tumor', 'Tumor Pituitario']
-
-    # np.argmax() encuentra el índice (0, 1, 2, o 3) de la clase con la probabilidad más alta
-    score_index = np.argmax(predictions)
-
-    predicted_class = class_names[score_index]
-    confidence = predictions[0][score_index] * 100
-
-    # Mostrar el resultado
-    st.success(f"**Predicción:** {predicted_class}")
-    st.info(f"**Confianza:** {confidence:.2f}%")
-
-    # Explicabilidad con Grad-CAM
-    st.write("---")
-    st.subheader("Explicabilidad del Modelo (Grad-CAM)")
-    st.write("El mapa de calor resalta las áreas que el modelo consideró más importantes para su predicción.")
-
-    with st.spinner('Generando mapa de calor...'):
-        # Generar el heatmap
-        heatmap = generar_grad_cam(grad_model, processed_img_expanded, score_index)
-        
-        # Superponer el heatmap
-        superimposed_image = superponer_heatmap(original_img_array, heatmap)
-
-        # Mostrar la imagen original y el heatmap lado a lado
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.image(original_img_array, caption='Imagen Original (Procesada)', use_container_width=True)
-        with col2:
-            st.image(superimposed_image, caption='Imagen con Grad-CAM', use_container_width=True)
-
-    # Mostrar todas las probabilidades
-    st.write("Probabilidades detalladas:")
-    all_scores = {class_names[i]: predictions[0][i] * 100 for i in range(len(class_names))}
-    st.dataframe(all_scores, use_container_width=True)
+if use_test_images:
+    test_root = os.path.join(os.getcwd(), 'test_img')
+    if not os.path.exists(test_root):
+        st.error('No se encontró la carpeta test_img en el directorio de trabajo.')
+    else:
+        classes = [d for d in sorted(os.listdir(test_root)) if os.path.isdir(os.path.join(test_root, d))]
+        if not classes:
+            st.error('La carpeta test_img no contiene subcarpetas.')
+        else:
+            selected_class = st.selectbox('Selecciona la carpeta/clase', classes)
+            class_dir = os.path.join(test_root, selected_class)
+            images = [f for f in sorted(os.listdir(class_dir)) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+            if not images:
+                st.warning('No hay imágenes en la carpeta seleccionada.')
+            else:
+                selected_image = st.selectbox('Selecciona la imagen', images)
+                image_path = os.path.join(class_dir, selected_image)
+                try:
+                    image = Image.open(image_path)
+                    analizar_imagen(image, caption_text=f'Imagen de prueba: {selected_class}/{selected_image}')
+                except Exception as e:
+                    st.error(f'No se pudo abrir la imagen: {e}')
+else:
+    # Flujo original: subir archivo
+    if uploaded_file is not None:
+        try:
+            image = Image.open(uploaded_file)
+            analizar_imagen(image, caption_text='Imagen subida.')
+        except Exception as e:
+            st.error(f'Error al leer la imagen subida: {e}')

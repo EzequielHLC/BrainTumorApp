@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NEURAID - Asistente de Diagnóstico</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <style>
+        /* --- Paleta de Colores --- */
+        :root {
+            --c-fondo: #F0F4F8; 
+            --c-mint-claro: #DDF4E7;
+            --c-verde-acento: #67C090;
+            --c-teal-oscuro: #26667F;
+            --c-azul-primario: #124170;
+            --c-blanco: #FFFFFF;
+            --c-gris-claro: #e0e0e0;
+            --c-texto-secundario: #555;
+            --c-alerta-rojo: #e57373;
+        }
+
+        /* --- Reseteo Básico --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--c-fondo);
+            color: var(--c-teal-oscuro);
+        }
+
+        /* --- Layout Principal con Sidebar --- */
+        .app-layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+        /* --- Barra Lateral (Sidebar) --- */
+        #sidebar {
+            background-color: var(--c-azul-primario);
+            color: var(--c-blanco);
+            padding: 2rem 0;
+            position: fixed;
+            width: 240px;
+            height: 100%;
+            overflow-y: auto;
+        }
+        #sidebar-header {
+            padding: 0 1.5rem 1.5rem 1.5rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        #sidebar-header .fa-brain { font-size: 3rem; color: var(--c-verde-acento); }
+        #sidebar-header h2 { margin-top: 0.5rem; font-size: 1.5rem; color: var(--c-blanco); }
+        #sidebar-header p {
+            font-size: 0.8rem;
+            color: var(--c-mint-claro);
+            opacity: 0.8;
+            margin-top: 0.5rem;
+        }
+        #sidebar-nav { list-style: none; margin-top: 2rem; }
+        #sidebar-nav li a {
+            display: block;
+            padding: 1rem 1.5rem;
+            color: var(--c-mint-claro);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            border-left: 4px solid transparent;
+        }
+        #sidebar-nav li a:hover {
+            background-color: rgba(255,255,255,0.05);
+            color: var(--c-blanco);
+            border-left: 4px solid var(--c-verde-acento);
+        }
+        #sidebar-nav li a i { margin-right: 0.75rem; width: 20px; }
+
+        /* --- Contenedor de Contenido Principal --- */
+        #main-content-wrapper {
+            grid-column: 2 / 3;
+            padding: 3rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .content-card {
+            background: var(--c-blanco);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.07);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        .content-card-header {
+            background-color: var(--c-fondo);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--c-gris-claro);
+        }
+        .content-card-header h2 {
+            color: var(--c-azul-primario);
+            margin: 0;
+            font-size: 1.75rem;
+        }
+        .content-card-header i { margin-right: 0.5rem; color: var(--c-verde-acento); }
+        .content-card-body { padding: 2rem; }
+        hr { border: none; border-top: 1px solid var(--c-gris-claro); margin: 2.5rem 0; }
+
+        /* --- Zona de Carga de Archivo --- */
+        #upload-form { text-align: center; }
+        #file-upload-label {
+            display: block;
+            padding: 2.5rem;
+            border: 3px dashed var(--c-verde-acento);
+            border-radius: 12px;
+            background-color: var(--c-mint-claro);
+            color: var(--c-azul-primario);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        #file-upload-label:hover { background-color: #cbefe0; border-color: var(--c-teal-oscuro); }
+        #file-upload-label strong { font-size: 1.1rem; }
+        #file-upload { display: none; }
+        #file-name { margin-top: 1rem; font-weight: 600; }
+        
+        /* Botones (Analizar y Reiniciar) */
+        .button {
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .button i { margin-right: 0.5rem; }
+        #upload-button {
+            background-color: var(--c-verde-acento);
+            color: var(--c-blanco);
+            display: none;
+            margin: 1rem auto 0;
+        }
+        #upload-button:hover { background-color: #55a87a; }
+        #reset-button { background-color: var(--c-texto-secundario); color: var(--c-blanco); }
+        #reset-button:hover { background-color: var(--c-alerta-rojo); }
+
+        /* --- Sección de Resultados --- */
+        #results-section { display: none; }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+        .metric-card {
+            background: #f9f9f9;
+            border: 1px solid var(--c-gris-claro);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .metric-card-title {
+            font-weight: 600;
+            color: var(--c-teal-oscuro);
+            margin: 0 0 0.5rem 0;
+        }
+        .metric-card-value {
+            font-weight: 700;
+            font-size: 2.5rem;
+            color: var(--c-azul-primario);
+            line-height: 1;
+        }
+
+        /* Imágenes (Grad-CAM) */
+        .images-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+        .image-card { text-align: center; }
+        .image-card img {
+            max-width: 100%;
+            border-radius: 8px;
+            border: 1px solid var(--c-gris-claro);
+            cursor: zoom-in;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .image-card img:hover { transform: scale(1.03); box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .image-card figcaption { margin-top: 0.5rem; font-weight: 600; color: var(--c-teal-oscuro); }
+
+        /* Tabla de Probabilidades */
+        #probabilities-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        #probabilities-table th, #probabilities-table td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--c-gris-claro);
+        }
+        #probabilities-table th {
+            background-color: #f9f9f9;
+            color: var(--c-teal-oscuro);
+            font-weight: 600;
+        }
+        #probabilities-table td:last-child { font-weight: 700; color: var(--c-azul-primario); }
+        .highlight-row { background-color: var(--c-mint-claro) !important; font-weight: 700; }
+
+        /* Botón de Reinicio */
+        #reset-button-container { text-align: center; margin-top: 2.5rem; }
+
+        /* Spinner y Animación de Carga */
+        #loader-section { display: none; text-align: center; padding: 3rem 0; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--c-verde-acento);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem auto;
+        }
+        #loader-section p {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--c-azul-primario);
+            animation: pulsate 1.5s ease-in-out infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes pulsate { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
+        
+        /* --- NUEVO: Sección de Información Dinámica --- */
+        #info-section { display: none; } /* Oculto por defecto */
+        #info-content { line-height: 1.6; }
+        #info-content h3 { color: var(--c-azul-primario); margin-bottom: 0.5rem; }
+        #info-content p { margin-bottom: 1rem; }
+        #info-content a {
+            color: var(--c-verde-acento);
+            font-weight: 600;
+            text-decoration: none;
+        }
+        #info-content a:hover { text-decoration: underline; }
+
+        /* Disclaimer y Footer */
+        #disclaimer-section {
+            border-left: 5px solid var(--c-alerta-rojo);
+            background: #fff8f8;
+            padding: 1.5rem;
+            border-radius: 8px;
+        }
+        #disclaimer-section h3 { color: var(--c-alerta-rojo); margin-bottom: 0.5rem; }
+        footer { text-align: center; padding: 1.5rem; color: var(--c-texto-secundario); font-size: 0.9rem; }
+        
+        /* --- Modal de Imagen (Lightbox) con Pan/Zoom --- */
+        .modal-backdrop {
+            display: none; 
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            justify-content: center;
+            align-items: center;
+            /* NUEVO: Oculta el desbordamiento de la imagen ampliada */
+            overflow: hidden; 
+        }
+        .modal-visible { display: flex; }
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 35px;
+            color: #f1f1f1;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.2s ease;
+            z-index: 1010; /* Encima de la imagen */
+        }
+        .modal-close:hover { color: var(--c-gris-claro); }
+        
+        /* NUEVO: Estilos para Pan/Zoom */
+        #modal-image-content {
+            max-width: none; /* Permite que la imagen sea más grande que la pantalla */
+            max-height: none;
+            border-radius: 8px;
+            /* La transición se quita para un paneo suave */
+            transition: none; 
+            transform-origin: center center;
+            cursor: grab; /* Indica que se puede arrastrar */
+        }
+        /* Cursor cuando se está arrastrando */
+        #modal-image-content.is-panning {
+            cursor: grabbing;
+        }
+
+        #modal-caption {
+            text-align: center;
+            color: var(--c-gris-claro);
+            padding: 10px 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            z-index: 1010;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div id="image-modal" class="modal-backdrop">
+        <span class="modal-close" id="modal-close-button">&times;</span>
+        <img id="modal-image-content">
+        <div id="modal-caption"></div>
+    </div>
+
+    <div class="app-layout">
+        
+        <nav id="sidebar">
+            <div id="sidebar-header">
+                <i class="fa-solid fa-brain"></i>
+                <h2>NEURAID</h2>
+                <p>Neural Radiologic Anomaly<br>Identification and Diagnosis</p>
+            </div>
+            <ul id="sidebar-nav">
+                <li><a href="#upload-section"><i class="fa-solid fa-upload"></i>Cargar Imagen</a></li>
+                <li><a href="#results-section"><i class="fa-solid fa-poll"></i>Ver Resultados</a></li>
+                <li><a href="#info-section"><i class="fa-solid fa-circle-info"></i>Información</a></li>
+                <li><a href="#disclaimer-section"><i class="fa-solid fa-triangle-exclamation"></i>Aviso Importante</a></li>
+            </ul>
+        </nav>
+
+        <div id="main-content-wrapper">
+            
+            <section id="upload-section" class="content-card">
+                <div class="content-card-header">
+                    <h2><i class="fa-solid fa-upload"></i>Paso 1: Cargar Imagen</h2>
+                </div>
+                <div class="content-card-body">
+                    <p>Sube una imagen de Resonancia Magnética (MRI) cerebral. El sistema de IA la analizará.</p>
+                    <br>
+                    <form id="upload-form">
+                        <label for="file-upload" id="file-upload-label">
+                            <strong><i class="fa-solid fa-file-image"></i> Haz clic para cargar</strong>
+                            <br>
+                            <span>O arrastra y suelta un archivo (.jpg, .png)</span>
+                        </label>
+                        <input type="file" id="file-upload" accept="image/png, image/jpeg">
+                        <div id="file-name"></div>
+                        <button type="submit" id="upload-button" class="button">
+                            <i class="fa-solid fa-magnifying-glass-chart"></i>Analizar Imagen
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <section id="loader-section">
+                <div class="spinner"></div>
+                <p>Analizando con NEURAID... El modelo está procesando.</p>
+            </section>
+
+            <section id="results-section" class="content-card">
+                <div class="content-card-header">
+                    <h2><i class="fa-solid fa-poll"></i>Paso 2: Resultados del Análisis</h2>
+                </div>
+                <div class="content-card-body">
+                    
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <h3 class="metric-card-title">Predicción Principal</h3>
+                            <div class="metric-card-value" id="result-prediction"></div>
+                        </div>
+                        <div class="metric-card">
+                            <h3 class="metric-card-title">Nivel de Confianza</h3>
+                            <div class="metric-card-value" id="result-confidence"></div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <h3><i class="fa-solid fa-images"></i> Visualización de Explicabilidad (Grad-CAM)</h3>
+                    <p>El mapa de calor resalta las áreas de interés. <strong>Haz clic en una imagen para ampliar y arrastrar.</strong></p>
+                    <br>
+                    <div class="images-grid">
+                        <figure class="image-card">
+                            <img id="img-original" alt="Imagen Original (Procesada)">
+                            <figcaption>Imagen Original</figcaption>
+                        </figure>
+                        <figure class="image-card">
+                            <img id="img-gradcam" alt="Mapa de Calor (Grad-CAM)">
+                            <figcaption>Mapa de Calor (Grad-CAM)</figcaption>
+                        </figure>
+                    </div>
+
+                    <hr>
+
+                    <h3><i class="fa-solid fa-list-ul"></i> Probabilidades Detalladas</h3>
+                    <table id="probabilities-table">
+                        <thead> <tr> <th>Clase</th> <th>Confianza</th> </tr> </thead>
+                        <tbody id="probabilities-tbody"> </tbody>
+                    </table>
+                    
+                    <div id="reset-button-container">
+                        <button id="reset-button" class="button">
+                            <i class="fa-solid fa-rotate-right"></i>Analizar otra imagen
+                        </button>
+                    </div>
+
+                </div>
+            </section>
+            
+            <section id="info-section" class="content-card">
+                <div class="content-card-header">
+                    <h2><i class="fa-solid fa-circle-info"></i>Información Adicional</h2>
+                </div>
+                <div class="content-card-body" id="info-content">
+                    </div>
+            </section>
+
+            <section id="disclaimer-section" class="content-card">
+                <div class="content-card-body" id="disclaimer-body">
+                    <h3><i class="fa-solid fa-triangle-exclamation"></i> Aviso Importante</h3>
+                    <p><strong>NEURAID</strong> es una herramienta de asistencia basada en Inteligencia Artificial y <strong>no reemplaza el diagnóstico de un profesional médico calificado.</strong></p>
+                    <br>
+                    <p>Los resultados generados son predicciones y deben ser interpretados y confirmados por un radiólogo o neurólogo. No tome decisiones médicas basándose únicamente en la salida de este software.</p>
+                </div>
+            </section>
+
+            <footer>
+                <p>&copy; 2025 - NEURAID (Neural Radiologic Anomaly Identification and Diagnosis). Todos los derechos reservados.</p>
+            </footer>
+
+        </div> </div> <script>
+        // --- Referencias a elementos del DOM ---
+        const form = document.getElementById('upload-form');
+        const fileInput = document.getElementById('file-upload');
+        const fileNameDisplay = document.getElementById('file-name');
+        const uploadButton = document.getElementById('upload-button');
+        const loaderSection = document.getElementById('loader-section');
+        const resultsSection = document.getElementById('results-section');
+        
+        const resultPrediction = document.getElementById('result-prediction');
+        const resultConfidence = document.getElementById('result-confidence');
+        const imgOriginal = document.getElementById('img-original');
+        const imgGradCam = document.getElementById('img-gradcam');
+        
+        const probabilitiesTbody = document.getElementById('probabilities-tbody');
+        const resetButton = document.getElementById('reset-button');
+
+        // Referencias a Modal
+        const imageModal = document.getElementById('image-modal');
+        const modalCloseButton = document.getElementById('modal-close-button');
+        const modalImageContent = document.getElementById('modal-image-content');
+        const modalCaption = document.getElementById('modal-caption');
+        
+        // --- NUEVO: Referencias a Sección de Info ---
+        const infoSection = document.getElementById('info-section');
+        const infoContent = document.getElementById('info-content');
+
+        // --- Lógica de la UI ---
+        
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                fileNameDisplay.textContent = fileInput.files[0].name;
+                uploadButton.style.display = 'block';
+            } else {
+                fileNameDisplay.textContent = '';
+                uploadButton.style.display = 'none';
+            }
+        });
+
+        form.addEventListener('submit', async (event) => {
+            event.preventDefault(); 
+            if (fileInput.files.length === 0) {
+                alert('Por favor, selecciona un archivo primero.');
+                return;
+            }
+
+            resultsSection.style.display = 'none';
+            infoSection.style.display = 'none'; // Ocultar info anterior
+            loaderSection.style.display = 'block';
+            uploadButton.disabled = true;
+            uploadButton.innerHTML = 'Analizando...';
+            window.location.hash = '#loader-section';
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error(`Error del servidor: ${response.statusText}`);
+                const data = await response.json();
+                updateUI(data);
+            } catch (error) {
+                console.error('Error al llamar a la API:', error);
+                alert('Ocurrió un error al procesar la imagen. Revisa la consola.');
+            } finally {
+                loaderSection.style.display = 'none';
+                uploadButton.disabled = false;
+                uploadButton.innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i>Analizar Imagen';
+            }
+        });
+        
+        resetButton.addEventListener('click', () => {
+            resultsSection.style.display = 'none';
+            infoSection.style.display = 'none'; // Ocultar info
+            fileInput.value = null;
+            fileNameDisplay.textContent = '';
+            uploadButton.style.display = 'none';
+            probabilitiesTbody.innerHTML = '';
+            infoContent.innerHTML = ''; // Limpiar info
+            window.location.hash = 'upload-section';
+        });
+
+        // Función para actualizar la UI (AHORA CON INFO DINÁMICA)
+        function updateUI(data) {
+            resultPrediction.textContent = data.prediction;
+            resultConfidence.textContent = `${data.confidence.toFixed(2)}%`;
+            imgOriginal.src = "data:image/png;base64," + data.images.original_base64;
+            imgGradCam.src = "data:image/png;base64," + data.images.grad_cam_base64;
+            probabilitiesTbody.innerHTML = '';
+            
+            const scoresArray = Object.entries(data.all_scores).map(([clase, porcentajeStr]) => ({
+                clase,
+                porcentaje: parseFloat(porcentajeStr.replace('%', ''))
+            })).sort((a, b) => b.porcentaje - a.porcentaje);
+
+            scoresArray.forEach(item => {
+                const row = document.createElement('tr');
+                if (item.clase === data.prediction) row.classList.add('highlight-row');
+                row.innerHTML = `<td>${item.clase}</td> <td>${item.porcentaje.toFixed(2)}%</td>`;
+                probabilitiesTbody.appendChild(row);
+            });
+            
+            // --- NUEVO: Llenar sección de información ---
+            infoContent.innerHTML = getInfoContent(data.prediction);
+            infoSection.style.display = 'block';
+
+            resultsSection.style.display = 'block';
+            window.location.hash = 'results-section';
+        }
+        
+        // --- NUEVO: Función para obtener el texto de información ---
+        function getInfoContent(prediction) {
+            switch(prediction) {
+                case 'Glioma':
+                    return `
+                        <h3>Sobre el Glioma</h3>
+                        <p>Un glioma es un tipo de tumor que se origina en las células gliales del cerebro o la médula espinal. Estas células son las que brindan soporte y nutren a las neuronas. Los gliomas se clasifican según el tipo de célula glial involucrada y su grado (velocidad de crecimiento).</p>
+                        <p><strong>Fuente:</strong> <a href="https://www.mayoclinic.org/es/diseases-conditions/glioma/symptoms-causes/syc-20350251" target="_blank" rel="noopener noreferrer">Mayo Clinic</a></p>
+                    `;
+                case 'Meningioma':
+                    return `
+                        <h3>Sobre el Meningioma</h3>
+                        <p>Un meningioma es un tumor que surge de las meninges, las membranas que rodean el cerebro y la médula espinal. La gran mayoría de los meningiomas son benignos (no cancerosos) y de crecimiento lento. Debido a que no se originan en el tejido cerebral en sí, técnicamente no son tumores cerebrales.</p>
+                        <p><strong>Fuente:</strong> <a href="https://www.mayoclinic.org/es/diseases-conditions/meningioma/symptoms-causes/syc-20355643" target="_blank" rel="noopener noreferrer">Mayo Clinic</a></p>
+                    `;
+                case 'Tumor Pituitario':
+                    return `
+                        <h3>Sobre el Tumor Pituitario</h3>
+                        <p>Los tumores pituitarios son crecimientos anormales que se desarrollan en la glándula pituitaria, un órgano del tamaño de un guisante situado en la base del cerebro. La mayoría son adenomas (benignos) y pueden causar problemas al producir un exceso de hormonas o al presionar la glándula y las estructuras nerviosas cercanas (como el nervio óptico).</p>
+                        <p><strong>Fuente:</strong> <a href="https://www.mayoclinic.org/es/diseases-conditions/pituitary-tumors/symptoms-causes/syc-20350548" target="_blank" rel="noopener noreferrer">Mayo Clinic</a></p>
+                    `;
+                case 'Sin Tumor':
+                    return `
+                        <h3>Cerebro Sano: Un Dato Interesante</h3>
+                        <p>El modelo no ha detectado anomalías significativas. Como dato de interés, aunque el cerebro solo representa alrededor del 2% del peso corporal, consume aproximadamente el 20% del oxígeno y las calorías del cuerpo.</p>
+                        <p>Además, el cerebro humano está compuesto en un <strong>60% por grasa</strong>, lo que lo convierte en el órgano más graso del cuerpo. Estos ácidos grasos son cruciales para el rendimiento cerebral.</p>
+                        <p><strong>Fuente:</strong> <a href="https://www.nm.org/healthbeat/healthy-tips/11-datos-curiosos-sobre-el-cerebro" target="_blank" rel="noopener noreferrer">Northwestern Medicine</a></p>
+                    `;
+                default:
+                    return "<p>Información no disponible para esta categoría.</p>";
+            }
+        }
+
+        // --- Lógica del Modal de Imagen con Pan/Zoom ---
+        
+        let currentZoom = 1;
+        let isPanning = false;
+        let panStartX = 0;
+        let panStartY = 0;
+        let imgInitialX = 0; // Posición X de la imagen
+        let imgInitialY = 0; // Posición Y de la imagen
+        
+        function openModal(event) {
+            const imgSrc = event.target.src;
+            const imgAlt = event.target.alt;
+            
+            // Resetear estado de zoom/pan
+            currentZoom = 1;
+            isPanning = false;
+            imgInitialX = 0;
+            imgInitialY = 0;
+            
+            modalImageContent.src = imgSrc;
+            modalCaption.textContent = imgAlt;
+            // Resetear transformación
+            modalImageContent.style.transform = 'translate(0px, 0px) scale(1)';
+            
+            imageModal.classList.add('modal-visible');
+        }
+
+        function closeModal() {
+            imageModal.classList.remove('modal-visible');
+            isPanning = false; // Asegurarse de detener el paneo
+        }
+
+        // Eventos para abrir el modal
+        imgOriginal.addEventListener('click', openModal);
+        imgGradCam.addEventListener('click', openModal);
+
+        // Eventos para cerrar el modal
+        modalCloseButton.addEventListener('click', closeModal);
+        imageModal.addEventListener('click', (event) => {
+            if (event.target === imageModal) closeModal(); // Clic en el fondo
+        });
+
+        // Evento de Rueda del Ratón para Zoom
+        modalImageContent.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            
+            const rect = modalImageContent.getBoundingClientRect();
+            // Posición del ratón relativa a la imagen
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+            
+            // Cantidad de zoom
+            const delta = event.deltaY > 0 ? -0.2 : 0.2; // Zoom más rápido
+            const newZoom = Math.max(1, currentZoom + delta); // Mínimo 100%
+
+            // Calcular el nuevo origen para el zoom (zoom hacia el cursor)
+            imgInitialX = imgInitialX - (mouseX / currentZoom) * (newZoom - currentZoom);
+            imgInitialY = imgInitialY - (mouseY / currentZoom) * (newZoom - currentZoom);
+            
+            currentZoom = newZoom;
+            
+            modalImageContent.style.transform = `translate(${imgInitialX}px, ${imgInitialY}px) scale(${currentZoom})`;
+        });
+
+        // Evento para Iniciar Paneo (Arrastrar)
+        modalImageContent.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+            isPanning = true;
+            modalImageContent.classList.add('is-panning');
+            
+            // Punto de inicio del clic, ajustado por la posición actual
+            panStartX = event.clientX - imgInitialX;
+            panStartY = event.clientY - imgInitialY;
+        });
+
+        // Evento para Mover (Panear)
+        modalImageContent.addEventListener('mousemove', (event) => {
+            if (!isPanning) return;
+            event.preventDefault();
+            
+            // Calcular nueva posición
+            imgInitialX = event.clientX - panStartX;
+            imgInitialY = event.clientY - panStartY;
+            
+            modalImageContent.style.transform = `translate(${imgInitialX}px, ${imgInitialY}px) scale(${currentZoom})`;
+        });
+
+        // Eventos para Detener Paneo
+        modalImageContent.addEventListener('mouseup', () => {
+            isPanning = false;
+            modalImageContent.classList.remove('is-panning');
+        });
+        modalImageContent.addEventListener('mouseleave', () => {
+            isPanning = false;
+            modalImageContent.classList.remove('is-panning');
+        });
+
+    </script>
+</body>
+</html>
